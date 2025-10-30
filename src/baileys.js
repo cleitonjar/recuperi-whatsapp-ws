@@ -26,6 +26,54 @@ export function tsToOut(ts) {
   }
 }
 
+export async function resolveValidJid(sock, to) {
+  if (!to) throw new Error("Número 'to' é obrigatório.")
+  const clean = String(to).replace(/\D/g, '')
+  const base = clean.replace(/^0+/, '') // remove zeros à esquerda
+  const baseJid = `${base}@s.whatsapp.net`
+
+  async function checkNumber(jid) {
+    try {
+      const num = jid.replace('@s.whatsapp.net', '')
+      const result = await sock.onWhatsApp(num)
+      console.log("Existe:", num, "=>", JSON.stringify(result))
+
+      if (Array.isArray(result) && result[0]?.exists) {
+        const realJid = result[0].jid
+
+        // ⚠️ LOG DE AMBIGUIDADE
+        if (realJid !== `${num}@s.whatsapp.net`) {
+          console.warn(`⚠️ Número ${num} redireciona para ${realJid}`)
+        }
+
+        return realJid
+      }
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  // 1️⃣ Testa o número como veio
+  let realJid = await checkNumber(baseJid)
+  if (realJid) return realJid
+
+  // 2️⃣ Se for do Brasil, tenta alternar com/sem o 9
+  if (base.startsWith('55')) {
+    const with9 = base.replace(/^55(\d{2})(\d{8})$/, '55$19$2')
+    const with9Jid = `${with9}@s.whatsapp.net`
+    realJid = await checkNumber(with9Jid)
+    if (realJid) return realJid
+
+    const without9 = base.replace(/^55(\d{2})9(\d{8})$/, '55$1$2')
+    const without9Jid = `${without9}@s.whatsapp.net`
+    realJid = await checkNumber(without9Jid)
+    if (realJid) return realJid
+  }
+
+  throw new Error(`Número ${to} não existe no WhatsApp`)
+}
+
 export async function getSocket(session) {
   if (sessions.has(session)) return sessions.get(session)
 

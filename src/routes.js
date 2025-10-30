@@ -1,5 +1,5 @@
 import express from 'express'
-import { getSocket, getStatus, getQrPng, toJid, logoutSession } from './baileys.js'
+import { getSocket, getStatus, getQrPng, resolveValidJid, logoutSession } from './baileys.js'
 import { setWebhook, getMsg, markBotMessage } from './db.js'
 
 const router = express.Router()
@@ -38,7 +38,8 @@ router.post('/:session/send', async (req, res) => {
   if (!to) return res.status(400).json({ ok: false, error: "Campos 'to' é obrigatório" })
   try {
     const sock = await getSocket(session)
-    const jid = toJid(to)
+    const jid = await resolveValidJid(sock, to)
+
     const m = await sock.sendMessage(jid, payload)
     await markBotMessage(session, m.key.id)
     res.json({ ok: true, messageId: m.key.id, to: jid })
